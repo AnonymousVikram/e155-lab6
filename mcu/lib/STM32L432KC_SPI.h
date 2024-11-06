@@ -16,7 +16,7 @@
 //////////////////////////////////////////////////////////////////////////////
 
 #define SPI_SCK PB3
-#define SPI_CS PA11
+#define SPI_CS PB7
 #define SPI_SDO PB5
 #define SPI_SDI PB4
 

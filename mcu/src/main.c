@@ -25,6 +25,14 @@ char *webpageStart =
 char *ledStr =
     "<p>LED Control:</p><form action=\"ledon\"><input type=\"submit\" value=\"Turn the LED on!\"></form>\
 	<form action=\"ledoff\"><input type=\"submit\" value=\"Turn the LED off!\"></form>";
+
+char *tempStr =
+    "<p>Temperature Precision Control: </p> <form action=\"8bit\"><input "
+    "type=\"submit\" value=\"8bit\"></form><form action=\"9bit\"><input "
+    "type=\"submit\" value=\"9bit\"></form><form action=\"10bit\"><input "
+    "type=\"submit\" value=\"10bit\"></form><form action=\"11bit\"><input "
+    "type=\"submit\" value=\"11bit\"></form><form action=\"12bit\"><input "
+    "type=\"submit\" value=\"12bit\"></form>";
 char *webpageEnd = "</body></html>";
 
 // determines whether a given character sequence is in a char array request,
@@ -51,6 +59,22 @@ int updateLEDStatus(char request[]) {
   return led_status;
 }
 
+void updateTempPrec(char request[]) {
+  if (inString(request, "8bit") == 1) {
+    setPrecision(8);
+  } else if (inString(request, "9bit") == 1) {
+    setPrecision(9);
+  } else if (inString(request, "10bit") == 1) {
+    setPrecision(10);
+  } else if (inString(request, "11bit") == 1) {
+    setPrecision(11);
+  } else if (inString(request, "12bit") == 1) {
+    setPrecision(12);
+  }
+
+  return;
+}
+
 /////////////////////////////////////////////////////////////////
 // Solution Functions
 /////////////////////////////////////////////////////////////////
@@ -63,7 +87,7 @@ int main(void) {
   gpioEnable(GPIO_PORT_B);
   gpioEnable(GPIO_PORT_C);
 
-  pinMode(PB3, GPIO_OUTPUT);
+  pinMode(LED_PIN, GPIO_OUTPUT);
 
   RCC->APB2ENR |= (RCC_APB2ENR_TIM15EN);
   initTIM(TIM15);
@@ -73,11 +97,6 @@ int main(void) {
   // TODO: Add SPI initialization code
   initSPI(0b111, 0, 1);
   initTempSensor();
-
-  delay_millis(TIM15, 1000);
-  float temp = readTemp();
-  printf("Temperature: %f\n", temp);
-
   while (1) {
     /* Wait for ESP8266 to send a request.
     Requests take the form of '/REQ:<tag>\n', with TAG begin <= 10 characters.
@@ -96,9 +115,10 @@ int main(void) {
       request[charIndex++] = readChar(USART);
     }
 
+    updateTempPrec(request);
+
     // TODO: Add SPI code here for reading temperature
     float temp = readTemp();
-    printf("Temperature: %f\n", temp);
 
     // Update string with current LED state
 
@@ -110,14 +130,22 @@ int main(void) {
     else if (led_status == 0)
       sprintf(ledStatusStr, "LED is off!");
 
+    char tempStatusStr[32];
+    sprintf(tempStatusStr, "Temperature: %.4f", temp);
+
     // finally, transmit the webpage over UART
     sendString(USART, webpageStart); // webpage header code
     sendString(USART, ledStr);       // button for controlling LED
+    sendString(USART, tempStr);
 
     sendString(USART, "<h2>LED Status</h2>");
 
     sendString(USART, "<p>");
     sendString(USART, ledStatusStr);
+    sendString(USART, "</p>");
+
+    sendString(USART, "<p>");
+    sendString(USART, tempStatusStr);
     sendString(USART, "</p>");
 
     sendString(USART, webpageEnd);

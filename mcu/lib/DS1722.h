@@ -14,6 +14,8 @@
 /* Initializes the DS1722 temperature sensor. */
 void initTempSensor(void);
 
+void setPrecision(uint8_t prec);
+
 /* Reads the temperature from the DS1722 temperature sensor.
  *    -- return: the temperature in degrees Celsius */
 float readTemp(void);
