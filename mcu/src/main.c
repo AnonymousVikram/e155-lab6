@@ -25,6 +25,14 @@ char *webpageStart =
 char *ledStr =
     "<p>LED Control:</p><form action=\"ledon\"><input type=\"submit\" value=\"Turn the LED on!\"></form>\
 	<form action=\"ledoff\"><input type=\"submit\" value=\"Turn the LED off!\"></form>";
+
+char *tempStr =
+    "<p>Temperature Precision Control: </p> <form action=\"8bit\"><input "
+    "type=\"submit\" value=\"8bit\"></form><form action=\"9bit\"><input "
+    "type=\"submit\" value=\"9bit\"></form><form action=\"10bit\"><input "
+    "type=\"submit\" value=\"10bit\"></form><form action=\"11bit\"><input "
+    "type=\"submit\" value=\"11bit\"></form><form action=\"12bit\"><input "
+    "type=\"submit\" value=\"12bit\"></form>";
 char *webpageEnd = "</body></html>";
 
 // determines whether a given character sequence is in a char array request,
@@ -51,6 +59,22 @@ int updateLEDStatus(char request[]) {
   return led_status;
 }
 
+void updateTempPrec(char request[]) {
+  if (inString(request, "8bit") == 1) {
+    setPrecision(8);
+  } else if (inString(request, "9bit") == 1) {
+    setPrecision(9);
+  } else if (inString(request, "10bit") == 1) {
+    setPrecision(10);
+  } else if (inString(request, "11bit") == 1) {
+    setPrecision(11);
+  } else if (inString(request, "12bit") == 1) {
+    setPrecision(12);
+  }
+
+  return;
+}
+
 /////////////////////////////////////////////////////////////////
 // Solution Functions
 /////////////////////////////////////////////////////////////////
@@ -63,16 +87,16 @@ int main(void) {
   gpioEnable(GPIO_PORT_B);
   gpioEnable(GPIO_PORT_C);
 
-  pinMode(PB3, GPIO_OUTPUT);
+  pinMode(LED_PIN, GPIO_OUTPUT);
 
   RCC->APB2ENR |= (RCC_APB2ENR_TIM15EN);
   initTIM(TIM15);
 
   USART_TypeDef *USART = initUSART(USART1_ID, 125000);
 
-  // Initialize the DS1722
-  initDS1722();
-
+  // TODO: Add SPI initialization code
+  initSPI(0b111, 0, 1);
+  initTempSensor();
   while (1) {
     /* Wait for ESP8266 to send a request.
     Requests take the form of '/REQ:<tag>\n', with TAG begin <= 10 characters.
@@ -80,47 +104,50 @@ int main(void) {
     */
 
     // Receive web request from the ESP
-    // char request[BUFF_LEN] = "                  "; // initialize to known
-    // value int charIndex = 0;
+    char request[BUFF_LEN] = "                  "; // initialize to known value
+    int charIndex = 0;
 
-    //// Keep going until you get end of line character
-    // while(inString(request, "\n") == -1) {
-    //   // Wait for a complete request to be transmitted before processing
-    //   while(!(USART->ISR & USART_ISR_RXNE));
-    //   request[charIndex++] = readChar(USART);
-    // }
+    // Keep going until you get end of line character
+    while (inString(request, "\n") == -1) {
+      // Wait for a complete request to be transmitted before processing
+      while (!(USART->ISR & USART_ISR_RXNE))
+        ;
+      request[charIndex++] = readChar(USART);
+    }
 
-    //// Read the temperature from the DS1722
+    updateTempPrec(request);
+
+    // TODO: Add SPI code here for reading temperature
     float temp = readTemp();
-    printf("%f", temp);
-    //// Update string with current LED state
 
-    // int led_status = updateLEDStatus(request);
+    // Update string with current LED state
 
-    // char ledStatusStr[20];
-    // if (led_status == 1)
-    //   sprintf(ledStatusStr,"LED is on!");
-    // else if (led_status == 0)
-    //   sprintf(ledStatusStr,"LED is off!");
+    int led_status = updateLEDStatus(request);
 
-    //// finally, transmit the webpage over UART
-    // sendString(USART, webpageStart); // webpage header code
-    // sendString(USART, ledStr); // button for controlling LED
+    char ledStatusStr[20];
+    if (led_status == 1)
+      sprintf(ledStatusStr, "LED is on!");
+    else if (led_status == 0)
+      sprintf(ledStatusStr, "LED is off!");
 
-    // sendString(USART, "<h2>LED Status</h2>");
+    char tempStatusStr[32];
+    sprintf(tempStatusStr, "Temperature: %.4f", temp);
+
+    // finally, transmit the webpage over UART
+    sendString(USART, webpageStart); // webpage header code
+    sendString(USART, ledStr);       // button for controlling LED
+    sendString(USART, tempStr);
+
+    sendString(USART, "<h2>LED Status</h2>");
 
     // sendString(USART, "<p>");
     // sendString(USART, ledStatusStr);
     // sendString(USART, "</p>");
 
-    // sendString(USART, "<h2>Temperature</h2>");
-    // sendString(USART, "<p>");
-    // char tempStr[20];
-    // sprintf(tempStr, "Temperature: %f", temp);
-    // sendString(USART, tempStr);
-    // sendString(USART, "</p>");
+    sendString(USART, "<p>");
+    sendString(USART, tempStatusStr);
+    sendString(USART, "</p>");
 
-    // sendString(USART, webpageEnd);
-    delay_millis(TIM15, 1000);
+    sendString(USART, webpageEnd);
   }
 }
